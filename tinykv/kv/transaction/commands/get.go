@@ -36,12 +36,10 @@ func (g *Get) Read(txn *mvcc.RoTxn) (interface{}, [][]byte, error) {
 	// Check for locks and their visibilities.
 	// Hint: Check the interfaces provided by `mvcc.RoTxn`.
 	lock, err := txn.GetLock(key)
-	if lock == nil {
-		return nil, nil, nil
-	} else if err != nil {
-		return nil, nil, err
-	} else if lock.Ts <= txn.StartTS {
-		return nil, nil, nil
+	if err != nil {
+		return response, nil, err
+	} else if lock != nil && lock.Ts <= txn.StartTS {
+		return response, nil, nil
 	}
 	// YOUR CODE HERE (lab2).
 	// Search writes for a committed value, set results in the response.
