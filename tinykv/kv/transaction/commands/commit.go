@@ -68,7 +68,7 @@ func commitKey(key []byte, commitTs uint64, txn *mvcc.MvccTxn, response interfac
 		existingWrite, _, err := txn.CurrentWrite(key)
 		if err != nil {
 			return nil, err
-		} else if existingWrite != nil {
+		} else if existingWrite != nil && existingWrite.Kind != mvcc.WriteKindRollback {
 			return nil, nil
 		}
 		respValue := reflect.ValueOf(response)
