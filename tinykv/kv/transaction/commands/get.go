@@ -37,14 +37,22 @@ func (g *Get) Read(txn *mvcc.RoTxn) (interface{}, [][]byte, error) {
 	// Hint: Check the interfaces provided by `mvcc.RoTxn`.
 	lock, err := txn.GetLock(key)
 	if err != nil {
+		response.NotFound = true
 		return response, nil, err
 	} else if lock != nil && lock.Ts <= txn.StartTS {
+		response.NotFound = true
+		response.Error = &kvrpcpb.KeyError{Locked: lock.Info(key)}
 		return response, nil, nil
 	}
 	// YOUR CODE HERE (lab2).
 	// Search writes for a committed value, set results in the response.
 	// Hint: Check the interfaces provided by `mvcc.RoTxn`.
 	value, err := txn.GetValue(key)
+	if value == nil || err != nil {
+		response.NotFound = true
+		return response, nil, err
+	}
+	response.NotFound = false
 	response.Value = value
 	return response, nil, nil
 }
