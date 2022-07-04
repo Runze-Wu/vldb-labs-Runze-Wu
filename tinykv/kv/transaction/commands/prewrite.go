@@ -88,7 +88,11 @@ func (p *Prewrite) prewriteMutation(txn *mvcc.MvccTxn, mut *kvrpcpb.Mutation) (*
 	if err != nil {
 		return nil, err
 	} else if lock != nil {
-		return &kvrpcpb.KeyError{Locked: lock.Info(key)}, nil
+		if lock.Ts == txn.StartTS {
+			return nil, nil
+		} else {
+			return &kvrpcpb.KeyError{Locked: lock.Info(key)}, nil
+		}
 	}
 	// YOUR CODE HERE (lab2).
 	// Write a lock and value.
