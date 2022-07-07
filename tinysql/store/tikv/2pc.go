@@ -514,12 +514,25 @@ func (actionCommit) handleSingleBatch(c *twoPhaseCommitter, bo *Backoffer, batch
 	return nil
 }
 
+func (c *twoPhaseCommitter) buildRollbackRequest(batch batchKeys) *tikvrpc.Request {
+	//panic("YOUR CODE HERE")
+	req := &pb.BatchRollbackRequest{Keys: batch.keys, StartVersion: c.startTS}
+	return tikvrpc.NewRequest(tikvrpc.CmdBatchRollback, req, pb.Context{})
+}
+
 func (actionCleanup) handleSingleBatch(c *twoPhaseCommitter, bo *Backoffer, batch batchKeys) error {
 	// follow actionPrewrite.handleSingleBatch, build the rollback request
 
 	// build and send the rollback request
 	// YOUR CODE HERE (lab3).
-	panic("YOUR CODE HERE")
+	//panic("YOUR CODE HERE")
+	var resp *tikvrpc.Response
+	var err error
+	req := c.buildRollbackRequest(batch)
+	resp, err = c.store.SendReq(bo, req, batch.region, readTimeoutShort)
+	if err != nil {
+		return errors.Trace(err)
+	}
 
 	// handle the response and error refer to actionPrewrite.handleSingleBatch
 	// YOUR CODE HERE (lab3).
