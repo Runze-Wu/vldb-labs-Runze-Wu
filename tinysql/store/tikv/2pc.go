@@ -16,6 +16,7 @@ package tikv
 import (
 	"bytes"
 	"context"
+	"github.com/pingcap/tidb/parser/terror"
 	"math"
 	"sync"
 	"time"
@@ -435,6 +436,12 @@ func (c *twoPhaseCommitter) getUndeterminedErr() error {
 	return c.mu.undeterminedErr
 }
 
+func (c *twoPhaseCommitter) buildCommitRequest(batch batchKeys) *tikvrpc.Request {
+	//panic("YOUR CODE HERE")
+	req := &pb.CommitRequest{Keys: batch.keys, StartVersion: c.startTS, CommitVersion: c.commitTS}
+	return tikvrpc.NewRequest(tikvrpc.CmdCommit, req, pb.Context{})
+}
+
 func (actionCommit) handleSingleBatch(c *twoPhaseCommitter, bo *Backoffer, batch batchKeys) error {
 	// follow actionPrewrite.handleSingleBatch, build the commit request
 
@@ -443,9 +450,13 @@ func (actionCommit) handleSingleBatch(c *twoPhaseCommitter, bo *Backoffer, batch
 	sender := NewRegionRequestSender(c.store.regionCache, c.store.client)
 	// build and send the commit request
 	// YOUR CODE HERE (lab3).
-	panic("YOUR CODE HERE")
+	//panic("YOUR CODE HERE")
+	req := c.buildCommitRequest(batch)
+	resp, err = c.store.SendReq(bo, req, batch.region, readTimeoutShort)
 	logutil.BgLogger().Debug("actionCommit handleSingleBatch", zap.Bool("nil response", resp == nil))
-
+	if err != nil {
+		return errors.Trace(err)
+	}
 	// If we fail to receive response for the request that commits primary key, it will be undetermined whether this
 	// transaction has been successfully committed.
 	// Under this circumstance,  we can not declare the commit is complete (may lead to data lost), nor can we throw
@@ -467,10 +478,36 @@ func (actionCommit) handleSingleBatch(c *twoPhaseCommitter, bo *Backoffer, batch
 
 	// handle the response and error refer to actionPrewrite.handleSingleBatch
 	// YOUR CODE HERE (lab3).
-	panic("YOUR CODE HERE")
-
+	//panic("YOUR CODE HERE")
+	regionErr, err := resp.GetRegionError()
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if regionErr != nil {
+		err = bo.Backoff(BoRegionMiss, errors.New(regionErr.String()))
+		if err != nil {
+			return errors.Trace(err)
+		}
+		// re-split keys and commit again.
+		err = c.commitKeys(bo, batch.keys)
+		if err != nil && terror.ErrorNotEqual(err, ErrRegionUnavailable) {
+			c.setUndeterminedErr(errors.Trace(err))
+		}
+		return errors.Trace(err)
+	}
+	if resp.Resp == nil {
+		return errors.Trace(ErrBodyMissing)
+	}
+	commitResp := resp.Resp.(*pb.CommitResponse)
+	keyErr := commitResp.GetError()
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if keyErr != nil {
+		err1 := extractKeyErr(keyErr)
+		if err1 != nil {
+			return errors.Trace(err1)
+		}
+	}
 	// Group that contains primary key is always the first.
 	// We mark transaction's status committed when we receive the first success response.
 	c.mu.committed = true
@@ -486,7 +523,31 @@ func (actionCleanup) handleSingleBatch(c *twoPhaseCommitter, bo *Backoffer, batc
 
 	// handle the response and error refer to actionPrewrite.handleSingleBatch
 	// YOUR CODE HERE (lab3).
-	panic("YOUR CODE HERE")
+	//panic("YOUR CODE HERE")
+	regionErr, err := resp.GetRegionError()
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if regionErr != nil {
+		err = bo.Backoff(BoRegionMiss, errors.New(regionErr.String()))
+		if err != nil {
+			return errors.Trace(err)
+		}
+		// re-split keys and commit again.
+		err = c.cleanupKeys(bo, batch.keys)
+		return errors.Trace(err)
+	}
+	if resp.Resp == nil {
+		return errors.Trace(ErrBodyMissing)
+	}
+	cleanupResp := resp.Resp.(*pb.BatchRollbackResponse)
+	keyErr := cleanupResp.GetError()
+	if keyErr != nil {
+		err1 := extractKeyErr(keyErr)
+		if err1 != nil {
+			return errors.Trace(err1)
+		}
+	}
 	return nil
 }
 
