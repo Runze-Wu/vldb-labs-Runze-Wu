@@ -357,8 +357,12 @@ func (lr *LockResolver) resolveLock(bo *Backoffer, l *Lock, status TxnStatus, cl
 
 		// build the request
 		// YOUR CODE HERE (lab3).
-		panic("YOUR CODE HERE")
-
+		//panic("YOUR CODE HERE")
+		req = tikvrpc.NewRequest(tikvrpc.CmdResolveLock,
+			&kvrpcpb.ResolveLockRequest{
+				StartVersion:  l.TxnID,
+				CommitVersion: status.CommitTS(),
+			}, kvrpcpb.Context{})
 		resp, err := lr.store.SendReq(bo, req, loc.Region, readTimeoutShort)
 		if err != nil {
 			return errors.Trace(err)
