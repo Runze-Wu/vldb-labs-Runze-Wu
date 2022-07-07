@@ -18,12 +18,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
-
 	pb "github.com/pingcap-incubator/tinykv/proto/pkg/kvrpcpb"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/tidb/kv"
+	"strings"
 
 	"github.com/pingcap/tidb/store/tikv/tikvrpc"
 	"github.com/pingcap/tidb/tablecodec"
@@ -148,7 +147,20 @@ func (s *tikvSnapshot) get(bo *Backoffer, k kv.Key) ([]byte, error) {
 			//   1. The transaction is during commit, wait for a while and retry.
 			//   2. The transaction is dead with some locks left, resolve it.
 			// YOUR CODE HERE (lab3).
-			panic("YOUR CODE HERE")
+			//panic("YOUR CODE HERE")
+			lockInfo := keyErr.Locked
+			if lockInfo != nil {
+				msBeforeExpired, _, err := s.store.lockResolver.ResolveLocks(bo, lockInfo.LockVersion, []*Lock{NewLock(lockInfo)})
+				if err != nil {
+					return nil, errors.Trace(err)
+				}
+				if msBeforeExpired > 0 {
+					err = bo.BackoffWithMaxSleep(BoTxnLock, int(msBeforeExpired), errors.Errorf("Get key error: %v", lockInfo.String()))
+					if err != nil {
+						return nil, errors.Trace(err)
+					}
+				}
+			}
 			continue
 		}
 		return val, nil
