@@ -132,15 +132,21 @@ func (c *twoPhaseCommitter) initKeysAndMutations() error {
 		if len(v) > 0 {
 			// `len(v) > 0` means it's a put operation.
 			// YOUR CODE HERE (lab3).
-			panic("YOUR CODE HERE")
+			//panic("YOUR CODE HERE")
+			putCnt++
+			mutations[string(k)] = &mutationEx{pb.Mutation{Op: pb.Op_Put, Key: k, Value: v}}
 		} else {
 			// `len(v) == 0` means it's a delete operation.
 			// YOUR CODE HERE (lab3).
-			panic("YOUR CODE HERE")
+			//panic("YOUR CODE HERE")
+			delCnt++
+			mutations[string(k)] = &mutationEx{pb.Mutation{Op: pb.Op_Del, Key: k}}
 		}
 		// Update the keys array and statistic information
 		// YOUR CODE HERE (lab3).
-		panic("YOUR CODE HERE")
+		//panic("YOUR CODE HERE")
+		keys = append(keys, k)
+		size += len(k) + len(v)
 		return nil
 	})
 	if err != nil {
@@ -154,7 +160,10 @@ func (c *twoPhaseCommitter) initKeysAndMutations() error {
 		// YOUR CODE HERE (lab3).
 		_, ok := mutations[string(lockKey)]
 		if !ok {
-			panic("YOUR CODE HERE")
+			//panic("YOUR CODE HERE")
+			mutations[string(lockKey)] = &mutationEx{pb.Mutation{Op: pb.Op_Lock, Key: lockKey}}
+			keys = append(keys, lockKey)
+			size += len(lockKey)
 		}
 	}
 	if len(keys) == 0 {
@@ -344,7 +353,12 @@ func (c *twoPhaseCommitter) buildPrewriteRequest(batch batchKeys) *tikvrpc.Reque
 	// Build the prewrite request from the input batch,
 	// should use `twoPhaseCommitter.primary` to ensure that the primary key is not empty.
 	// YOUR CODE HERE (lab3).
-	panic("YOUR CODE HERE")
+	//panic("YOUR CODE HERE")
+	var mutations []*pb.Mutation
+	for _, key := range batch.keys {
+		mutations = append(mutations, &c.mutations[string(key)].Mutation)
+	}
+	req = &pb.PrewriteRequest{Mutations: mutations, PrimaryLock: c.primary(), StartVersion: c.startTS, LockTtl: c.lockTTL}
 	return tikvrpc.NewRequest(tikvrpc.CmdPrewrite, req, pb.Context{})
 }
 
